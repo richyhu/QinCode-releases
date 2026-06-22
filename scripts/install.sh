@@ -25,9 +25,43 @@ QINCODE_NO_MODIFY_PATH="${QINCODE_NO_MODIFY_PATH:-}"
 
 QINCODE_PATH_UPDATED_RC=""
 
+# 国内镜像配置
+QINCODE_GITCODE_BASE="https://gitcode.com/richy_CBS/qincode"
+
 # ── 工具函数 ──
 
 _have() { command -v "$1" >/dev/null 2>&1; }
+
+# 检测最佳下载源：国内 IP 用 gitcode，国外用 GitHub
+_detect_mirror() {
+  local tag="$1"
+  # 允许用户手动强制指定源
+  if [ -n "${QINCODE_MIRROR:-}" ]; then
+    case "$QINCODE_MIRROR" in
+      gitcode) echo "${QINCODE_GITCODE_BASE}/releases/download/${tag}"; return ;;
+      github)  echo "${QINCODE_GITHUB_BASE}/releases/download/${tag}"; return ;;
+    esac
+  fi
+
+  # 通过 IP 国家检测
+  local country
+  country="$(_download "https://ipapi.co/country/" 2>/dev/null || true)"
+  if [ "$country" = "CN" ]; then
+    echo "${QINCODE_GITCODE_BASE}/releases/download/${tag}"
+    return
+  fi
+
+  # IP 检测失败时，测速选源：先尝试 gitcode（3 秒超时）
+  if _have curl; then
+    if curl --fail --location --max-time 3 --silent "${QINCODE_GITCODE_BASE}/releases/download/${tag}/manifest.json" >/dev/null 2>&1; then
+      echo "${QINCODE_GITCODE_BASE}/releases/download/${tag}"
+      return
+    fi
+  fi
+
+  # 默认回退 GitHub
+  echo "${QINCODE_GITHUB_BASE}/releases/download/${tag}"
+}
 
 _log() {
   if [ -t 1 ]; then
@@ -211,11 +245,22 @@ main() {
     _log "最新版本：$version"
   fi
 
-  # 2. 下载 manifest.json（含 sha256）
-  local manifest_url="${QINCODE_GITHUB_BASE}/releases/download/${tag}/manifest.json"
+  # 2. 选择下载源并下载 manifest.json（含 sha256）
+  local download_base
+  download_base="$(_detect_mirror "$tag")"
+  _log "使用下载源：${download_base}"
+
+  local manifest_url="${download_base}/manifest.json"
   _log "正在获取 manifest..."
   manifest="$(_download "$manifest_url")"
-  [ -n "$manifest" ] || _err "manifest 为空或不可访问"
+  if [ -z "$manifest" ]; then
+    # manifest 下载失败，回退到 GitHub
+    _log "首选源失败，回退到 GitHub..."
+    download_base="${QINCODE_GITHUB_BASE}/releases/download/${tag}"
+    manifest_url="${download_base}/manifest.json"
+    manifest="$(_download "$manifest_url")"
+    [ -n "$manifest" ] || _err "manifest 为空或不可访问（GitHub 也失败了）"
+  fi
 
   # 3. 从 manifest 取校验值
   checksum="$(_manifest_checksum "$manifest" "$target")"
@@ -223,10 +268,16 @@ main() {
 
   # 4. 下载二进制
   filename="qincode-${target}"
-  binary_url="${QINCODE_GITHUB_BASE}/releases/download/${tag}/${filename}"
+  binary_url="${download_base}/${filename}"
   TMPDIR_INSTALL="$(mktemp -d)"
   _log "正在下载 ${binary_url}"
-  _download "$binary_url" "${TMPDIR_INSTALL}/${filename}"
+  if ! _download "$binary_url" "${TMPDIR_INSTALL}/${filename}"; then
+    # 二进制下载失败，回退到 GitHub
+    _log "首选源下载失败，回退到 GitHub..."
+    download_base="${QINCODE_GITHUB_BASE}/releases/download/${tag}"
+    binary_url="${download_base}/${filename}"
+    _download "$binary_url" "${TMPDIR_INSTALL}/${filename}"
+  fi
 
   # 5. 校验
   _log "正在校验..."
