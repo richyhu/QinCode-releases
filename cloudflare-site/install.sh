@@ -3,7 +3,7 @@
 # QinCode 安装脚本（macOS / Linux）
 #
 # 用法：
-#   curl -fsSL https://github.com/richyhu/qincode-releases/raw/main/install.sh | bash
+#   curl -fsSL https://github.com/richyhu/QinCode-releases/raw/main/install.sh | bash
 #   curl -fsSL https://... | QINCODE_VERSION=0.1.0-build.2740 bash
 #   curl -fsSL https://... | bash -s -- --version 0.1.0-build.2740
 #
@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-QINCODE_REPO="richyhu/qincode-releases"
+QINCODE_REPO="richyhu/QinCode-releases"
 QINCODE_GITHUB_BASE="https://github.com/${QINCODE_REPO}"
 QINCODE_API_BASE="https://api.github.com/repos/${QINCODE_REPO}"
 
@@ -46,7 +46,7 @@ _parse_args() {
   while [ $# -gt 0 ]; do
     case "$1" in
       -h|--help)
-        echo "用法: curl -fsSL https://github.com/richyhu/qincode-releases/raw/main/install.sh | bash"
+        echo "用法: curl -fsSL https://github.com/richyhu/QinCode-releases/raw/main/install.sh | bash"
         exit 0 ;;
       --version)
         [ -n "${2:-}" ] || _err "--version 需要一个值"
@@ -199,15 +199,15 @@ main() {
 
   # 1. 获取版本
   if [ -n "$QINCODE_VERSION" ]; then
-    tag="v${QINCODE_VERSION#v}"   # 确保有 v 前缀
-    version="${tag#v}"
+    tag="${QINCODE_VERSION#v}"   # tag 与版本号一致（不含 v 前缀）
+    version="$tag"
     _log "使用指定版本：$version"
   else
     _log "正在获取最新版本..."
     release_json="$(_download "${QINCODE_API_BASE}/releases/latest")"
     tag="$(_json_field "$release_json" "tag_name")"
     [ -n "$tag" ] || _err "无法获取最新版本，请检查网络"
-    version="${tag#v}"
+    version="$tag"
     _log "最新版本：$version"
   fi
 
