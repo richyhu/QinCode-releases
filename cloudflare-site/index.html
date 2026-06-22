@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#fafafa">
+<title>QinCode — 终端里的 AI 编程助手</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* 极致统一的背景色，绝无隔断 */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --accent: #000000;
+  
+  /* 深色终端变量 */
+  --term-bg: rgba(10, 10, 12, 0.85);
+  --term-border: rgba(255, 255, 255, 0.15);
+  --term-text: #f0f0f0;
+  --term-muted: #888888;
+
+  /* 极致柔和的阴影，不依赖边框分割 */
+  --shadow-float: 0 20px 40px -10px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-card: 0 4px 24px -4px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.03);
+  --shadow-hover: 0 16px 40px -6px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.06);
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring: cubic-bezier(0.175, 0.885, 0.32, 1.1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 动态导航栏 (形态变化机制) ── */
+nav {
+  position: fixed;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 80px; /* 初始顶部高度更高更大气 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(1.5rem, 5vw, 3rem);
+  background: transparent;
+  /* 核心过渡动画：宽度、圆角、背景、高度都在平滑变化 */
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 999;
+}
+
+/* 下滑后变成“悬浮弹丸”形态 */
+nav.nav-pill {
+  top: 24px;
+  width: min(900px, 92vw);
+  height: 56px;
+  padding: 0 1.5rem;
+  border-radius: 99px;
+  background: rgba(250, 250, 250, 0.85);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.04);
+}
+
+.nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.nav-logo { width: 24px; height: 24px; object-fit: contain; } /* 黑色的真实 Logo */
+.nav-name { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
+.nav-links { display: flex; align-items: center; gap: 2rem; }
+.nav-link { font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); text-decoration: none; transition: color 0.2s; }
+.nav-link:hover { color: var(--text-primary); }
+.nav-cta {
+  font-size: 0.8125rem; font-weight: 600;
+  background: var(--text-primary); color: #fff;
+  padding: 8px 18px; border-radius: 99px;
+  text-decoration: none;
+  transition: all 0.2s var(--ease);
+}
+.nav-cta:hover { background: #333; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+@media (max-width: 600px) {
+  .nav-links { gap: 1rem; }
+  .nav-link { display: none; } /* 移动端精简顶部链接 */
+}
+
+/* ── Hero 区 ── */
+.hero {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 14rem clamp(1.5rem, 5vw, 3rem) 6rem;
+  z-index: 10;
+}
+.badge {
+  display: inline-flex; align-items: center;
+  border-radius: 99px; padding: 4px 4px 4px 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  font-size: 0.8125rem; font-weight: 600;
+  margin-bottom: 2.5rem;
+  animation: fadeUp 0.8s var(--ease) both;
+}
+.badge-label { color: var(--text-secondary); margin-right: 12px; }
+.badge-cta {
+  background: var(--bg); padding: 6px 14px; border-radius: 99px;
+  color: var(--text-primary); text-decoration: none;
+  display: flex; align-items: center; gap: 4px;
+  transition: background 0.2s;
+}
+.badge-cta:hover { background: #f0f0f0; }
+
+h1 {
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  font-weight: 800; letter-spacing: -0.04em; line-height: 1.05;
+  background: linear-gradient(180deg, #000000 0%, #555555 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 1.5rem;
+  max-width: 900px;
+  animation: fadeUp 0.8s 0.1s var(--ease) both;
+}
+.hero-sub {
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+  color: var(--text-secondary);
+  max-width: 600px; line-height: 1.6;
+  margin-bottom: 3.5rem;
+  animation: fadeUp 0.8s 0.2s var(--ease) both;
+}
+
+/* 安装胶囊 */
+.install-pill {
+  display: flex; align-items: center;
+  background: var(--surface);
+  border-radius: 99px;
+  box-shadow: var(--shadow-float);
+  padding: 6px;
+  width: min(540px, 92vw);
+  animation: fadeUp 0.8s 0.3s var(--ease) both;
+}
+.install-pill code {
+  flex: 1; text-align: left;
+  font-family: var(--font-mono); font-size: 0.875rem; color: var(--text-secondary);
+  padding: 0 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pill-copy {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--text-primary); color: #fff;
+  border: none; padding: 12px 24px; border-radius: 99px;
+  font-weight: 600; font-size: 0.875rem; cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.pill-copy:hover { background: #333; transform: scale(1.02); }
+.pill-copy:active { transform: scale(0.98); }
+.pill-copy svg { width: 14px; height: 14px; }
+
+/* ── 核心动画轨道 ── */
+.scroll-track {
+  position: relative;
+  height: 250vh;
+  margin-top: -5vh;
+}
+.sticky-frame {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* 巨型背景文字 */
+.bg-text {
+  position: absolute;
+  font-size: clamp(4rem, 12vw, 10rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  text-align: center;
+  background: linear-gradient(180deg, #111 0%, #aaa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+/* 氛围光晕 (柔和过渡，不产生边界线) */
+.ambient-glow {
+  position: absolute;
+  width: 60vw; height: 60vw;
+  max-width: 800px; max-height: 800px;
+  background: radial-gradient(circle, rgba(160,160,160,0.12) 0%, rgba(250,250,250,0) 70%);
+  border-radius: 50%;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  filter: blur(80px);
+  z-index: 0;
+}
+
+/* 终端卡片 */
+.term-card {
+  position: relative;
+  width: min(960px, 92vw);
+  height: 600px;
+  background: var(--term-bg);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--term-border);
+  border-radius: 24px;
+  box-shadow: 0 30px 60px -12px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05) inset;
+  z-index: 10;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  will-change: width, height, border-radius, transform;
+}
+.term-header {
+  height: 52px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: relative;
+}
+.mac-dots { position: absolute; left: 20px; display: flex; gap: 8px; }
+.mac-dots span { width: 12px; height: 12px; border-radius: 50%; }
+.mac-dots span:nth-child(1) { background: #ED6A5E; }
+.mac-dots span:nth-child(2) { background: #F4BF4F; }
+.mac-dots span:nth-child(3) { background: #61C554; }
+.term-title { font-size: 0.8125rem; font-weight: 600; color: var(--term-muted); font-family: var(--font-sans); }
+
+.term-content {
+  flex: 1; padding: 2.5rem; overflow: hidden;
+  display: flex; flex-direction: column; gap: 1.5rem;
+}
+.ai-greeting {
+  display: flex; gap: 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 1.25rem 1.5rem; border-radius: 16px;
+}
+.ai-avatar {
+  width: 40px; height: 40px; border-radius: 12px; background: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.ai-avatar img { width: 20px; height: 20px; } /* 终端里的机器人图标也用你们的Logo */
+.ai-text { color: var(--term-text); font-size: 0.9375rem; }
+.ai-text .model { display: inline-block; margin-top: 8px; font-size: 0.75rem; color: #000; background: #fff; padding: 2px 8px; border-radius: 4px; font-family: var(--font-mono); font-weight: 600;}
+
+.user-input { font-family: var(--font-mono); font-size: 0.875rem; color: var(--term-muted); display: flex; gap: 12px; }
+.user-input span:first-child { color: #fff; font-weight: 600; }
+
+.code-diff {
+  background: #0d0d0f; border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; padding: 1.25rem; font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.6;
+}
+.code-diff .add { color: #61C554; }
+.code-diff .dim { color: #555; }
+
+/* 缩小后的胶囊内容 */
+.pill-content {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  opacity: 0; pointer-events: none;
+  color: #fff;
+}
+.pill-content img { width: 20px; height: 20px; filter: invert(1); } /* 缩小到暗黑胶囊里时反色成白色 */
+.pill-content span { font-weight: 700; font-size: 0.9375rem; }
+
+/* ── Section 通用 (完全无背景断层) ── */
+.section { padding: 8rem clamp(1.5rem, 5vw, 3rem); position: relative; z-index: 20; }
+.section-inner { max-width: 1100px; margin: 0 auto; }
+.section-head { text-align: center; margin-bottom: 4rem; }
+.section-eyebrow { font-size: 0.875rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+.section-title { font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; letter-spacing: -0.03em; color: var(--text-primary); margin-bottom: 1rem; }
+.section-desc { font-size: 1.125rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto; }
+
+/* ── Bento Grid ── */
+.bento-grid {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem;
+}
+.bento-card {
+  background: var(--surface);
+  border-radius: 32px;
+  padding: 3rem;
+  box-shadow: var(--shadow-card);
+  transition: all 0.4s var(--ease);
+  position: relative; overflow: hidden;
+}
+.bento-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
+
+.bento-card:nth-child(1) { grid-column: span 12; display: flex; align-items: center; justify-content: space-between; }
+.bento-card:nth-child(2) { grid-column: span 7; }
+.bento-card:nth-child(3) { grid-column: span 5; }
+
+.bento-icon {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: #f4f4f5; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.5rem; color: var(--text-primary);
+}
+.bento-icon svg { width: 28px; height: 28px; }
+.bento-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.75rem; }
+.bento-desc { font-size: 1rem; color: var(--text-secondary); line-height: 1.7; }
+
+.bento-visual { flex: 1; display: flex; justify-content: flex-end; }
+.mock-cli { background: #000; padding: 20px; border-radius: 16px; color: #fff; font-family: var(--font-mono); font-size: 0.8125rem; transform: rotate(2deg) scale(1.1); box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+.mock-cli span { color: #888; }
+
+@media (max-width: 900px) {
+  .bento-card:nth-child(1) { flex-direction: column; align-items: flex-start; gap: 2rem; }
+  .bento-visual { width: 100%; justify-content: center; }
+  .bento-card:nth-child(2), .bento-card:nth-child(3) { grid-column: span 12; }
+}
+
+/* ── 安装区 ── */
+.install-box {
+  background: var(--surface); border-radius: 32px; padding: 4rem;
+  box-shadow: var(--shadow-card); max-width: 800px; margin: 0 auto;
+}
+.tabs { display: flex; gap: 16px; margin-bottom: 2rem; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 1rem; }
+.tab-btn {
+  background: none; border: none; font-size: 1rem; font-weight: 600; color: var(--text-tertiary);
+  cursor: pointer; padding: 8px 4px; position: relative; transition: color 0.2s;
+}
+.tab-btn.active { color: var(--text-primary); }
+.tab-btn.active::after { content: ''; position: absolute; bottom: -17px; left: 0; width: 100%; height: 2px; background: var(--text-primary); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: fadeUp 0.4s var(--ease); }
+
+.cmd-block {
+  background: #09090b; border-radius: 16px; padding: 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.5rem; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+}
+.cmd-block code { font-family: var(--font-mono); font-size: 0.9375rem; color: #f0f0f0; }
+.cmd-copy {
+  background: rgba(255,255,255,0.1); border: none; padding: 8px 16px; border-radius: 8px;
+  color: #fff; font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.cmd-copy:hover { background: rgba(255,255,255,0.2); }
+
+/* ── Footer ── */
+footer {
+  padding: 6rem clamp(1.5rem, 5vw, 3rem) 4rem;
+  text-align: center;
+  /* 去除原来的顶边框，靠间距融入整体背景 */
+}
+.footer-text { color: var(--text-tertiary); font-size: 0.875rem; font-weight: 500; }
+
+/* ── 动画 ── */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s var(--ease), transform 0.8s var(--ease); }
+.reveal.in { opacity: 1; transform: translateY(0); }
+
+</style>
+</head>
+<body>
+
+<!-- 导航栏默认宽敞无边，下滑后由JS追加 'nav-pill' 变身毛玻璃胶囊 -->
+<nav id="navbar">
+  <a class="nav-brand" href="/">
+    <img class="nav-logo" src="https://qinai.huruiqi.my/favicon.png" alt="QinCode">
+    <span class="nav-name">QinCode</span>
+  </a>
+  <div class="nav-links">
+    <a class="nav-link" href="#features">特性</a>
+    <a class="nav-link" href="https://github.com/richyhu/qincode-releases" target="_blank">GitHub</a>
+    <a class="nav-cta" href="#install">立即安装</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="badge">
+    <span class="badge-label">v0.1.0 现已发布</span>
+    <a class="badge-cta" href="https://github.com/richyhu/qincode-releases/releases" target="_blank">查看更新日志 →</a>
+  </div>
+  <h1>终端里的 AI<br>编程助手</h1>
+  <p class="hero-sub">完全原生的命令行体验，支持 DeepSeek、Claude 等旗舰模型。<br>不打断你的心流，让 AI 直接介入你的工作区。</p>
+
+  <div class="install-pill">
+    <code id="hero-cmd">curl -fsSL https://qincode.io/install.sh | bash</code>
+    <button class="pill-copy" onclick="copyText('hero-cmd', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      复制
+    </button>
+  </div>
+</section>
+
+<div class="scroll-track" id="scrollTrack">
+  <div class="sticky-frame">
+    <div class="ambient-glow" id="ambientGlow"></div>
+    
+    <div class="bg-text" id="bgText">Redefine<br>Workflow.</div>
+
+    <div class="term-card" id="termCard">
+      <div class="term-header" id="termHeader">
+        <div class="mac-dots"><span></span><span></span><span></span></div>
+        <div class="term-title">QinCode CLI</div>
+      </div>
+      
+      <div class="term-content" id="termContent">
+        <div class="ai-greeting">
+          <div class="ai-avatar"><img src="https://qinai.huruiqi.my/favicon.png" alt="AI"></div>
+          <div class="ai-text">
+            <div>已连接工作区。发现项目中缺少统一的错误处理逻辑，是否需要我帮你重构 <b>auth.js</b>？</div>
+            <span class="model">Model: DeepSeek-V3</span>
+          </div>
+        </div>
+        
+        <div class="user-input">
+          <span>~/project $</span>
+          <span>qincode "是的，添加 try/catch 并规范返回类型"</span>
+        </div>
+
+        <div class="code-diff">
+          <div class="dim">// auth.js</div>
+          <div class="add">+ try {</div>
+          <div class="add">+   const res = await api.login(credentials);</div>
+          <div class="add">+   return { success: true, data: res.data };</div>
+          <div class="add">+ } catch (err) {</div>
+          <div class="add">+   logger.error('Login failed', err);</div>
+          <div class="add">+   return { success: false, error: err.message };</div>
+          <div class="add">+ }</div>
+        </div>
+      </div>
+
+      <div class="pill-content" id="pillContent">
+        <img src="https://qinai.huruiqi.my/favicon.png" alt="QinCode">
+        <span>QinCode</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <div class="section-eyebrow">Pro Level Experience</div>
+      <h2 class="section-title">为硬核开发者设计</h2>
+      <p class="section-desc">抛弃繁琐的网页复制粘贴，让最高级的语言模型直接读写你的本地文件系统。</p>
+    </div>
+
+    <div class="bento-grid">
+      <div class="bento-card reveal">
+        <div>
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17L10 11 4 5"/><path d="M12 19h8"/></svg>
+          </div>
+          <h3 class="bento-title">终端原生流</h3>
+          <p class="bento-desc">直接在你的终端中提问、生成代码、执行命令。QinCode 采用原生编译，无缝集成到你的 zsh / bash 环境中，启动只需毫秒级。</p>
+        </div>
+        <div class="bento-visual">
+          <div class="mock-cli">
+            <span>></span> qincode review HEAD~1<br>
+            <span style="color:#61C554">✓</span> 分析完成: 发现 2 处性能隐患...
+          </div>
+        </div>
+      </div>
+
+      <div class="bento-card reveal">
+        <div class="bento-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+        </div>
+        <h3 class="bento-title">多模型自由切换</h3>
+        <p class="bento-desc">内置接入 DeepSeek、Claude 3.5 Sonnet 等行业顶尖模型。你可以随时根据任务复杂度切换最合适的大脑。</p>
+      </div>
+
+      <div class="bento-card reveal">
+        <div class="bento-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3 class="bento-title">数据绝对隐私</h3>
+        <p class="bento-desc">API Key 仅加密存储于你的本地机器。代码不会被用作任何模型训练，确保企业级项目的绝对安全。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="install">
+  <div class="section-inner">
+    <div class="section-head reveal">
+      <h2 class="section-title">准备好升级工作流了吗？</h2>
+      <p class="section-desc">一行命令，立即将 AI 引入你的终端。</p>
+    </div>
+
+    <div class="install-box reveal">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('mac', this)">macOS</button>
+        <button class="tab-btn" onclick="switchTab('linux', this)">Linux</button>
+      </div>
+
+      <div id="tab-mac" class="tab-panel active">
+        <div class="cmd-block">
+          <code id="mac-cmd">curl -fsSL https://qincode.io/install.sh | bash</code>
+          <button class="cmd-copy" onclick="copyText('mac-cmd', this)">复制</button>
+        </div>
+        <p style="color:var(--text-tertiary); font-size:0.875rem;">支持 Apple Silicon (M1/M2/M3) 及 Intel 芯片。需要 macOS 12.0 或以上版本。</p>
+      </div>
+
+      <div id="tab-linux" class="tab-panel">
+        <div class="cmd-block">
+          <code id="linux-cmd">curl -fsSL https://qincode.io/install.sh | bash</code>
+          <button class="cmd-copy" onclick="copyText('linux-cmd', this)">复制</button>
+        </div>
+        <p style="color:var(--text-tertiary); font-size:0.875rem;">支持 x64 及 ARM64 架构的主流 Linux 发行版（需 glibc 2.17+）。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-text">© 2026 QinCode. Redefine Developer Experience.</div>
+</footer>
+
+<script>
+// === 悬浮胶囊导航条 (Dynamic Island Style) ===
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 40) {
+    navbar.classList.add('nav-pill');
+  } else {
+    navbar.classList.remove('nav-pill');
+  }
+}, { passive: true });
+
+// 复制文本工具
+function copyText(id, btn) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '已复制 ✓';
+    btn.style.background = 'rgba(255,255,255,0.3)';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 2000);
+  });
+}
+
+// 标签页切换
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// 元素揭示动画
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('in');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// === 核心滚动缩放逻辑（坚若磐石版） ===
+const track = document.getElementById('scrollTrack');
+const card = document.getElementById('termCard');
+const content = document.getElementById('termContent');
+const header = document.getElementById('termHeader');
+const pill = document.getElementById('pillContent');
+const bgText = document.getElementById('bgText');
+const glow = document.getElementById('ambientGlow');
+
+function lerp(start, end, t) {
+  return start * (1 - t) + end * t;
+}
+
+function handleScroll() {
+  const rect = track.getBoundingClientRect();
+  const scrollDistance = rect.height - window.innerHeight;
+  let progress = -rect.top / scrollDistance;
+  progress = Math.max(0, Math.min(1, progress));
+
+  const isMobile = window.innerWidth < 768;
+  const startW = isMobile ? window.innerWidth * 0.92 : 960;
+  const startH = isMobile ? 500 : 600;
+  const targetW = 160; /* 微调：使其最终更像个精致的胶囊 */
+  const targetH = 44;
+  const startR = 24;
+  const targetR = 99;
+
+  const easeProgress = progress < 0.5 
+    ? 2 * progress * progress 
+    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+  card.style.width = `${lerp(startW, targetW, easeProgress)}px`;
+  card.style.height = `${lerp(startH, targetH, easeProgress)}px`;
+  card.style.borderRadius = `${lerp(startR, targetR, easeProgress)}px`;
+  
+  content.style.opacity = Math.max(0, 1 - progress * 3);
+  header.style.opacity = Math.max(0, 1 - progress * 3);
+  card.style.pointerEvents = progress > 0.3 ? 'none' : 'auto';
+
+  pill.style.opacity = Math.max(0, (progress - 0.7) * 3.3);
+
+  bgText.style.opacity = Math.max(0, progress * 2 - 0.5);
+  bgText.style.transform = `scale(${lerp(0.85, 1, easeProgress)})`;
+
+  glow.style.opacity = Math.max(0, 1 - progress * 1.5);
+}
+
+window.addEventListener('scroll', handleScroll, { passive: true });
+window.addEventListener('resize', handleScroll);
+handleScroll();
+</script>
+</body>
+</html>

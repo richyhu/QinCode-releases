@@ -1,0 +1,71 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. 0.1.0-build.2740)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: darwin-arm64
+          - os: macos-13
+            target: darwin-x64
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm run bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qincode-${{ matrix.target }}
+          path: release/qincode-${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifest-${{ matrix.target }}
+          path: release/manifest.json
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - run: |
+          mkdir -p release
+          cp artifacts/qincode-darwin-arm64/qincode-darwin-arm64 release/
+          cp artifacts/qincode-darwin-x64/qincode-darwin-x64 release/
+          cp artifacts/qincode-linux-x64/qincode-linux-x64 release/
+          cp artifacts/qincode-linux-arm64/qincode-linux-arm64 release/
+          node -e "const fs=require("fs");const m=["darwin-arm64","darwin-x64","linux-x64","linux-arm64"].map(t=>JSON.parse(fs.readFileSync("artifacts/manifest-"+t+"/manifest.json","utf-8")));const merged={version:m[0].version,platforms:{}};m.forEach(x=>Object.assign(merged.platforms,x.platforms));fs.writeFileSync("release/manifest.json",JSON.stringify(merged,null,2));"
+      - uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          files: |
+            release/qincode-darwin-arm64
+            release/qincode-darwin-x64
+            release/qincode-linux-x64
+            release/qincode-linux-arm64
+            release/manifest.json
+            scripts/install.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
